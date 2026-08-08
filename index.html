@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gym Page</title>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Gerenciador de Treinos</h1>
+            <p>Adicione, edite e remova seus treinos. Os dados ficam salvos no seu navegador.</p>
+        </header>
+
+        <section class="form-section">
+            <form id="workoutForm">
+                <input type="hidden" id="workoutId">
+                <div class="row">
+                    <label>Nome do treino</label>
+                    <input type="text" id="name" required placeholder="Ex: Peito e Tríceps">
+                </div>
+                <div class="row">
+                    <label>Data</label>
+                    <input type="date" id="date">
+                </div>
+                <div class="row">
+                    <label>Duração (min)</label>
+                    <input type="number" id="duration" min="0" placeholder="45">
+                </div>
+                <div class="row">
+                    <label>Notas</label>
+                    <textarea id="notes" rows="2" placeholder="Observações..."></textarea>
+                </div>
+                <div class="actions">
+                    <button type="submit" id="saveBtn">Adicionar treino</button>
+                    <button type="button" id="clearBtn">Limpar</button>
+                </div>
+            </form>
+        </section>
+
+        <section class="list-section">
+            <h2>Meus Treinos</h2>
+            <ul id="workoutList"></ul>
+            <p id="empty" class="muted">Nenhum treino adicionado.</p>
+        </section>
+    </div>
+
+    <style>
+        :root{font-family:system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial}
+        body{margin:0;background:#f5f7fb;color:#0b2545}
+        .container{max-width:720px;margin:32px auto;padding:20px;background:#fff;border-radius:8px;box-shadow:0 6px 20px rgba(11,37,69,0.08)}
+        header h1{margin:0 0 6px;font-size:22px}
+        header p{margin:0 0 18px;color:#556}
+        .row{display:flex;flex-direction:column;margin-bottom:10px}
+        label{font-size:13px;margin-bottom:6px;color:#334}
+        input[type=text],input[type=date],input[type=number],textarea{padding:8px;border:1px solid #d6deea;border-radius:6px;font-size:14px}
+        .actions{display:flex;gap:8px;margin-top:6px}
+        button{background:#0b63d6;color:#fff;padding:8px 12px;border:none;border-radius:6px;cursor:pointer}
+        #clearBtn{background:#e6eefc;color:#0b63d6}
+        .list-section h2{margin-top:20px}
+        #workoutList{list-style:none;padding:0;margin:10px 0}
+        #workoutList li{display:flex;justify-content:space-between;align-items:center;padding:10px;border:1px solid #eef3fb;border-radius:6px;margin-bottom:8px}
+        .meta{font-size:13px;color:#334}
+        .muted{color:#789;padding:8px 0}
+        .btns{display:flex;gap:6px}
+        .btns button{background:transparent;color:#0b63d6;padding:6px;border-radius:6px;border:1px solid transparent}
+        .btns button.delete{color:#c0392b}
+    </style>
+
+    <script>
+        const form = document.getElementById('workoutForm');
+        const workoutList = document.getElementById('workoutList');
+        const empty = document.getElementById('empty');
+        const saveBtn = document.getElementById('saveBtn');
+
+        let workouts = JSON.parse(localStorage.getItem('workouts') || '[]');
+
+        function persist(){
+            localStorage.setItem('workouts', JSON.stringify(workouts));
+        }
+
+        function render(){
+            workoutList.innerHTML = '';
+            if(workouts.length === 0){empty.style.display='block';return}else{empty.style.display='none'}
+            workouts.forEach(w=>{
+                const li = document.createElement('li');
+                const left = document.createElement('div');
+                left.innerHTML = `<strong>${escapeHtml(w.name)}</strong><div class="meta">${w.date||'—'} • ${w.duration? w.duration+' min':''}</div><div class="meta">${escapeHtml(w.notes||'')}</div>`;
+                const right = document.createElement('div');
+                right.className='btns';
+                const edit = document.createElement('button'); edit.textContent='Editar';
+                const del = document.createElement('button'); del.textContent='Apagar'; del.className='delete';
+                edit.onclick = ()=>startEdit(w.id);
+                del.onclick = ()=>{ if(confirm('Remover treino?')){ deleteWorkout(w.id) } };
+                right.appendChild(edit); right.appendChild(del);
+                li.appendChild(left); li.appendChild(right);
+                workoutList.appendChild(li);
+            })
+        }
+
+        function escapeHtml(s){return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c])}
+
+        function addWorkout(data){
+            workouts.unshift(data); persist(); render();
+        }
+
+        function deleteWorkout(id){
+            workouts = workouts.filter(w=>w.id!==id); persist(); render();
+        }
+
+        function startEdit(id){
+            const w = workouts.find(x=>x.id===id); if(!w) return;
+            document.getElementById('workoutId').value = w.id;
+            document.getElementById('name').value = w.name;
+            document.getElementById('date').value = w.date||'';
+            document.getElementById('duration').value = w.duration||'';
+            document.getElementById('notes').value = w.notes||'';
+            saveBtn.textContent = 'Salvar alterações';
+        }
+
+        function updateWorkout(id, data){
+            workouts = workouts.map(w=> w.id===id? {...w,...data} : w);
+            persist(); render();
+        }
+
+        form.addEventListener('submit', e=>{
+            e.preventDefault();
+            const idField = document.getElementById('workoutId');
+            const id = idField.value;
+            const data = {
+                id: id || String(Date.now()),
+                name: document.getElementById('name').value.trim(),
+                date: document.getElementById('date').value,
+                duration: document.getElementById('duration').value ? Number(document.getElementById('duration').value) : null,
+                notes: document.getElementById('notes').value.trim()
+            };
+            if(!data.name){ alert('Digite um nome para o treino.'); return }
+            if(id){ updateWorkout(id, data); idField.value=''; saveBtn.textContent='Adicionar treino'; form.reset(); } else { addWorkout(data); form.reset(); }
+        });
+
+        document.getElementById('clearBtn').addEventListener('click', ()=>{ form.reset(); document.getElementById('workoutId').value=''; saveBtn.textContent='Adicionar treino' })
+
+        render();
+    </script>
+</body>
+</html>
