@@ -10,6 +10,8 @@
         <header>
             <h1>Gerenciador de Treinos</h1>
             <p>Adicione, edite e remova seus treinos. Os dados ficam salvos no seu navegador.</p>
+            <button id="notifyBtn" type="button">Ativar notificações</button>
+            <p id="notifyInfo" class="muted">Permita notificações para receber avisos no dia do treino.</p>
         </header>
 
         <section class="form-section">
@@ -56,6 +58,7 @@
         input[type=text],input[type=date],input[type=number],textarea{padding:8px;border:1px solid #d6deea;border-radius:6px;font-size:14px}
         .actions{display:flex;gap:8px;margin-top:6px}
         button{background:#0b63d6;color:#fff;padding:8px 12px;border:none;border-radius:6px;cursor:pointer}
+        #notifyBtn{background:#16a34a;margin-top:12px}
         #clearBtn{background:#e6eefc;color:#0b63d6}
         .list-section h2{margin-top:20px}
         #workoutList{list-style:none;padding:0;margin:10px 0}
@@ -140,7 +143,67 @@
 
         document.getElementById('clearBtn').addEventListener('click', ()=>{ form.reset(); document.getElementById('workoutId').value=''; saveBtn.textContent='Adicionar treino' })
 
+        notifyBtn.addEventListener('click', requestNotificationPermission);
+
+        function isNotificationSupported(){ return 'Notification' in window }
+
+        function updateNotificationState(){
+            if(!isNotificationSupported()){
+                notifyInfo.textContent = 'Seu navegador não suporta notificações.';
+                notifyBtn.style.display = 'none';
+                return;
+            }
+            if(Notification.permission === 'granted'){
+                notifyInfo.textContent = 'Notificações ativadas. Você será avisado no dia do treino.';
+                notifyBtn.style.display = 'none';
+            } else if(Notification.permission === 'denied'){
+                notifyInfo.textContent = 'Notificações negadas. Altere a permissão no navegador.';
+                notifyBtn.style.display = 'none';
+            } else {
+                notifyInfo.textContent = 'Permita notificações para ser avisado no dia do treino.';
+                notifyBtn.style.display = 'inline-block';
+            }
+        }
+
+        function requestNotificationPermission(){
+            if(!isNotificationSupported()) return;
+            Notification.requestPermission().then(permission=>{
+                updateNotificationState();
+                if(permission === 'granted') checkNotifications();
+            });
+        }
+
+        function getTodayString(){
+            const today = new Date();
+            return today.toISOString().split('T')[0];
+        }
+
+        function checkNotifications(){
+            if(!isNotificationSupported() || Notification.permission !== 'granted') return;
+            const today = getTodayString();
+            const notifiedData = JSON.parse(localStorage.getItem('notifiedWorkouts') || '{}');
+            workouts.forEach(w=>{
+                if(w.date === today && notifiedData[w.id] !== today){
+                    showWorkoutNotification(w);
+                    notifiedData[w.id] = today;
+                }
+            });
+            localStorage.setItem('notifiedWorkouts', JSON.stringify(notifiedData));
+        }
+
+        function showWorkoutNotification(w){
+            const title = `Treino hoje: ${w.name}`;
+            const bodyParts = [];
+            if(w.duration) bodyParts.push(`${w.duration} min`);
+            if(w.notes) bodyParts.push(w.notes);
+            const body = bodyParts.join(' • ') || 'Abra o site para ver os detalhes do treino.';
+            new Notification(title, { body });
+        }
+
         render();
+        updateNotificationState();
+        checkNotifications();
+        setInterval(checkNotifications, 5 * 60 * 1000);
     </script>
 </body>
 </html>
